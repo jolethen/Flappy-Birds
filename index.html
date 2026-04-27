@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Aviator Workshop</title>
+    <title>Aviator Workshop: Pro</title>
     <link rel="stylesheet" href="global.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
         <div id="ui-layer">
             <div id="score-display">0</div>
             <div id="currency-wrapper">⚙️ <span id="coins">0</span></div>
-            <button id="shop-open-btn" onclick="toggleShop(true)">🛠️ Workshop</button>
+            <button id="shop-open-btn" onclick="toggleShop(true)">🛠️ SHOP</button>
         </div>
 
         <div id="death-screen" class="overlay hidden">
@@ -22,15 +22,15 @@
                 <p>SCORE: <span id="final-score">0</span></p>
                 <p>BEST: <span id="high-score">0</span></p>
             </div>
-            <button class="main-btn" onclick="resetGame()">FLY AGAIN</button>
-            <button class="sec-btn" onclick="toggleShop(true)">VISIT SHOP</button>
+            <button class="main-btn" onclick="resetGame()">REPAIR & FLY</button>
+            <button class="sec-btn" onclick="toggleShop(true)">UPGRADE</button>
         </div>
 
         <div id="shop-screen" class="overlay hidden">
             <h2>THE WORKSHOP</h2>
             <div class="shop-tabs">
-                <button onclick="showTab('tab-birds')">BIRDS</button>
-                <button onclick="showTab('tab-themes')">MAPS</button>
+                <button onclick="showTab('tab-birds')">AVESTRUZ</button>
+                <button onclick="showTab('tab-themes')">REGIONS</button>
             </div>
 
             <div id="tab-birds" class="tab-content">
@@ -40,7 +40,7 @@
                 <div class="grid" id="theme-grid"></div>
             </div>
 
-            <button class="close-btn" onclick="toggleShop(false)">CLOSE</button>
+            <button class="close-btn" onclick="toggleShop(false)">BACK TO HANGAR</button>
         </div>
     </div>
 
@@ -48,7 +48,7 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Game State
+        // Persistent State
         let score = 0;
         let coins = parseInt(localStorage.getItem('birdCoins')) || 0;
         let highScore = parseInt(localStorage.getItem('birdHighScore')) || 0;
@@ -56,157 +56,201 @@
         let activeBird = localStorage.getItem('birdActive') || 'b-classic';
         let activeTheme = localStorage.getItem('themeActive') || 't-classic';
 
-        // Timing for Smoothness
-        let lastTime = 0;
-        let pipeTimer = 0;
-
+        // Configuration
         const birdSkins = {
-            'b-classic': { color: '#f4d03f', price: 0, name: 'Default' },
-            'b-robotic': { color: '#bdc3c7', price: 20, name: 'Silver' },
-            'b-stealth': { color: '#2c3e50', price: 50, name: 'Stealth' },
-            'b-gold': { color: '#f1c40f', price: 100, name: 'Royal' },
-            'b-toxic': { color: '#2ecc71', price: 150, name: 'Toxic' }
+            'b-classic': { color: '#f4d03f', wing: '#f1c40f', name: 'Yellow Jacket', price: 0 },
+            'b-robotic': { color: '#bdc3c7', wing: '#95a5a6', name: 'Iron Wing', price: 50 },
+            'b-stealth': { color: '#2c3e50', wing: '#1a252f', name: 'Nightshade', price: 100 },
+            'b-gold': { color: '#f1c40f', wing: '#d4ac0d', name: 'Midas', price: 250 },
+            'b-toxic': { color: '#2ecc71', wing: '#27ae60', name: 'Biohazard', price: 500 }
         };
 
         const themes = {
-            't-classic': { bg: '#70c5ce', pipe: '#2ecc71', price: 0, name: 'Day' },
-            't-night': { bg: '#2c3e50', pipe: '#34495e', price: 30, name: 'Night' },
-            't-mars': { bg: '#e67e22', pipe: '#a04000', price: 60, name: 'Mars' },
-            't-void': { bg: '#000000', pipe: '#4b0082', price: 120, name: 'Void' },
-            't-sunset': { bg: '#ff7e5f', pipe: '#feb47b', price: 200, name: 'Sunset' }
+            't-classic': { bg: '#70c5ce', pipe: '#2ecc71', cloud: '#ffffff', name: 'Blue Skies', price: 0 },
+            't-night': { bg: '#2c3e50', pipe: '#34495e', cloud: '#5d6d7e', name: 'Midnight', price: 100 },
+            't-mars': { bg: '#e67e22', pipe: '#a04000', cloud: '#d35400', name: 'Red Planet', price: 200 },
+            't-void': { bg: '#000000', pipe: '#4b0082', cloud: '#222', name: 'The Void', price: 400 },
+            't-sunset': { bg: '#ff7e5f', pipe: '#feb47b', cloud: '#ffffff99', name: 'Horizon', price: 600 }
         };
 
+        // Game Entities
+        let bird = { x: 50, y: 300, w: 38, h: 26, v: 0, rotation: 0, wingY: 0 };
+        let pipes = [];
+        let particles = []; // Moving background elements
+        let lastTime = 0;
+        let pipeTimer = 0;
+        let gameActive = true;
+
         function resize() {
-            const screenWidth = window.innerWidth;
-            const screenHeight = window.innerHeight;
-            canvas.width = screenWidth > 600 ? screenHeight * 0.66 : screenWidth;
-            canvas.height = screenHeight;
+            canvas.width = window.innerWidth > 600 ? window.innerHeight * 0.66 : window.innerWidth;
+            canvas.height = window.innerHeight;
             bird.x = canvas.width * 0.15;
+            // Generate initial particles for background depth
+            particles = [];
+            for(let i=0; i<8; i++) spawnParticle(true);
         }
 
-        // Relative Physics adjusted for Delta Time
-        const getGravity = () => canvas.height * 1.8; // Per second
-        const getFlap = () => canvas.height * -0.45; // Instant impulse
-        const getPipeSpeed = () => canvas.width * 0.45; // Per second
+        function spawnParticle(randomX = false) {
+            particles.push({
+                x: randomX ? Math.random() * canvas.width : canvas.width + 50,
+                y: Math.random() * canvas.height * 0.6,
+                size: Math.random() * 40 + 20,
+                speed: Math.random() * 20 + 10
+            });
+        }
 
-        let bird = { x: 50, y: 300, w: 34, h: 24, v: 0, rotation: 0 };
-        let pipes = [];
-        let gameActive = true;
+        const getGravity = () => canvas.height * 1.8;
+        const getFlap = () => canvas.height * -0.42;
+        const getPipeSpeed = () => canvas.width * 0.45;
 
         function drawBird() {
             ctx.save();
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
             
-            // Smoother rotation interpolation
-            let targetRotation = Math.min(Math.PI/4, Math.max(-Math.PI/4, bird.v * 0.002));
-            bird.rotation += (targetRotation - bird.rotation) * 0.15;
-            
+            // Smooth Rotation
+            let targetRot = Math.min(Math.PI/3, Math.max(-Math.PI/6, bird.v * 0.0018));
+            bird.rotation += (targetRot - bird.rotation) * 0.12;
             ctx.rotate(bird.rotation);
-            ctx.fillStyle = birdSkins[activeBird].color;
+
+            const skin = birdSkins[activeBird];
+            
+            // Body
+            ctx.fillStyle = skin.color;
             ctx.beginPath();
-            ctx.ellipse(0, 0, 17, 12, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(10, -4, 4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(12, -4, 2, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+
+            // Wing (Animation)
+            bird.wingY = Math.sin(Date.now() * 0.01) * 5;
+            ctx.fillStyle = skin.wing;
+            ctx.beginPath();
+            ctx.ellipse(-8, bird.wingY, 10, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Beak
+            ctx.fillStyle = "#e67e22";
+            ctx.beginPath();
+            ctx.moveTo(15, -2); ctx.lineTo(25, 2); ctx.lineTo(15, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            // Eye
+            ctx.fillStyle = "white";
+            ctx.beginPath(); ctx.arc(10, -5, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(12, -5, 2.5, 0, Math.PI*2); ctx.fill();
+
             ctx.restore();
         }
 
         function update(dt) {
             if (!gameActive) return;
 
-            // Update Physics
             bird.v += getGravity() * dt;
             bird.y += bird.v * dt;
 
-            // Pipe Spawning Logic (Time based)
+            // Background Parallax update
+            particles.forEach(p => {
+                p.x -= p.speed * dt;
+                if (p.x < -100) {
+                    particles.splice(particles.indexOf(p), 1);
+                    spawnParticle();
+                }
+            });
+
             pipeTimer += dt;
-            if (pipeTimer > 1.5) { // Spawn every 1.5 seconds
-                const gap = canvas.height * 0.28;
-                const top = Math.random() * (canvas.height - gap - 150) + 50;
+            if (pipeTimer > 1.4) {
+                const gap = canvas.height * 0.26;
+                const top = Math.random() * (canvas.height - gap - 200) + 100;
                 pipes.push({ x: canvas.width, top: top, gap: gap, passed: false });
                 pipeTimer = 0;
             }
 
-            const pipeWidth = canvas.width * 0.18;
-            const pSpeed = getPipeSpeed();
-
+            const pWidth = canvas.width * 0.18;
             pipes.forEach((p, i) => {
-                p.x -= pSpeed * dt;
-
+                p.x -= getPipeSpeed() * dt;
                 // Collision
-                if (bird.x + bird.w > p.x && bird.x < p.x + pipeWidth && (bird.y < p.top || bird.y + bird.h > p.top + p.gap)) endGame();
-                
+                if (bird.x + 25 > p.x && bird.x < p.x + pWidth && (bird.y < p.top || bird.y + bird.h > p.top + p.gap)) endGame();
                 // Score
-                if (p.x + pipeWidth < bird.x && !p.passed) { 
-                    score++; coins++; p.passed = true; updateUI(); 
-                }
+                if (p.x + pWidth < bird.x && !p.passed) { score++; coins += 5; p.passed = true; updateUI(); }
             });
 
             if (bird.y + bird.h > canvas.height || bird.y < 0) endGame();
-            if (pipes.length > 0 && pipes[0].x < -pipeWidth) pipes.shift();
+            if (pipes.length > 0 && pipes[0].x < -pWidth) pipes.shift();
         }
 
         function loop(timestamp) {
-            // Calculate Delta Time (seconds since last frame)
             let dt = (timestamp - lastTime) / 1000;
-            if (dt > 0.1) dt = 0; // Prevent huge jumps if user switches tabs
+            if (dt > 0.1) dt = 0;
             lastTime = timestamp;
 
             update(dt);
 
-            // Render
             const t = themes[activeTheme];
             ctx.fillStyle = t.bg;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const pipeWidth = canvas.width * 0.18;
+            // Draw Background Elements
+            ctx.fillStyle = t.cloud + "55"; // Semi-transparent
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            const pWidth = canvas.width * 0.18;
             pipes.forEach(p => {
                 ctx.fillStyle = t.pipe;
-                ctx.fillRect(p.x, 0, pipeWidth, p.top);
-                ctx.fillRect(p.x, p.top + p.gap, pipeWidth, canvas.height);
+                ctx.fillRect(p.x, 0, pWidth, p.top);
+                ctx.fillRect(p.x, p.top + p.gap, pWidth, canvas.height);
+                // Pipe Cap Deco
+                ctx.fillStyle = "rgba(0,0,0,0.2)";
+                ctx.fillRect(p.x, p.top - 20, pWidth, 20);
+                ctx.fillRect(p.x, p.top + p.gap, pWidth, 20);
             });
 
             drawBird();
-
             requestAnimationFrame(loop);
         }
 
+        // Shop & UI Logic (Enhanced)
         function initShop() {
             const bGrid = document.getElementById('bird-grid');
             const tGrid = document.getElementById('theme-grid');
             bGrid.innerHTML = ''; tGrid.innerHTML = '';
 
-            Object.keys(birdSkins).forEach(id => {
-                const isOwned = unlocked.includes(id);
-                bGrid.innerHTML += `<div class="item ${activeBird === id ? 'active' : ''}" onclick="buyItem('${id}', 'bird')">
-                    <div class="swatch" style="background:${birdSkins[id].color}"></div>
-                    <span>${birdSkins[id].name}</span>
-                    <small>${isOwned ? 'OWNED' : '⚙️' + birdSkins[id].price}</small>
-                </div>`;
+            Object.entries(birdSkins).forEach(([id, data]) => {
+                const owned = unlocked.includes(id);
+                bGrid.innerHTML += `
+                    <div class="item ${activeBird === id ? 'active' : ''}" onclick="buyItem('${id}', 'bird')">
+                        <div class="swatch" style="background:${data.color}"></div>
+                        <div class="item-name">${data.name}</div>
+                        <div class="price-tag">${owned ? 'OWNED' : '⚙️ ' + data.price}</div>
+                    </div>`;
             });
 
-            Object.keys(themes).forEach(id => {
-                const isOwned = unlocked.includes(id);
-                tGrid.innerHTML += `<div class="item ${activeTheme === id ? 'active' : ''}" onclick="buyItem('${id}', 'theme')">
-                    <div class="swatch" style="background:${themes[id].bg}"></div>
-                    <span>${themes[id].name}</span>
-                    <small>${isOwned ? 'OWNED' : '⚙️' + themes[id].price}</small>
-                </div>`;
+            Object.entries(themes).forEach(([id, data]) => {
+                const owned = unlocked.includes(id);
+                tGrid.innerHTML += `
+                    <div class="item ${activeTheme === id ? 'active' : ''}" onclick="buyItem('${id}', 'theme')">
+                        <div class="swatch" style="background:${data.bg}"></div>
+                        <div class="item-name">${data.name}</div>
+                        <div class="price-tag">${owned ? 'OWNED' : '⚙️ ' + data.price}</div>
+                    </div>`;
             });
         }
 
         function buyItem(id, type) {
-            const item = type === 'bird' ? birdSkins[id] : themes[id];
+            const data = type === 'bird' ? birdSkins[id] : themes[id];
             if (unlocked.includes(id)) {
                 if (type === 'bird') activeBird = id; else activeTheme = id;
-            } else if (coins >= item.price) {
-                coins -= item.price;
+            } else if (coins >= data.price) {
+                coins -= data.price;
                 unlocked.push(id);
                 if (type === 'bird') activeBird = id; else activeTheme = id;
-            } else {
-                return alert("Need more gears!");
-            }
+            } else return alert("NOT ENOUGH GEARS!");
             save(); initShop(); updateUI();
         }
 
@@ -227,6 +271,13 @@
             document.getElementById('death-screen').classList.remove('hidden');
         }
 
+        function resetGame() {
+            bird.y = canvas.height / 2; bird.v = 0; bird.rotation = 0;
+            pipes = []; score = 0; pipeTimer = 0; gameActive = true;
+            document.getElementById('death-screen').classList.add('hidden');
+            updateUI();
+        }
+
         function toggleShop(show) {
             document.getElementById('shop-screen').classList.toggle('hidden', !show);
             if (show) initShop();
@@ -242,25 +293,12 @@
             document.getElementById('score-display').innerText = score;
         }
 
-        function resetGame() {
-            bird.y = canvas.height / 2;
-            bird.v = 0;
-            bird.rotation = 0;
-            pipes = []; score = 0; pipeTimer = 0;
-            gameActive = true;
-            document.getElementById('death-screen').classList.add('hidden');
-            updateUI();
-        }
-
-        function flap() { 
-            if(gameActive) bird.v = getFlap(); 
-        }
-
+        const flap = () => { if(gameActive) bird.v = getFlap(); };
         window.addEventListener('keydown', (e) => { if(e.code === 'Space') flap(); });
         canvas.addEventListener('mousedown', flap);
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); }, {passive: false});
-
         window.addEventListener('resize', resize);
+
         resize();
         updateUI();
         requestAnimationFrame(loop);

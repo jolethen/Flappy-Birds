@@ -1,34 +1,69 @@
 body {
     margin: 0;
-    padding: 0;
+    background: #1a1a1a;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #222;
-    font-family: 'Courier New', Courier, monospace;
-    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: white;
 }
 
 #game-container {
     position: relative;
-    border: 4px solid #fff;
-    border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
+    border: 8px solid #3e2723;
+    border-radius: 15px;
+    overflow: hidden;
 }
 
-#gameCanvas {
-    display: block;
-    background-color: #70c5ce;
-}
-
-#score {
+#ui-layer {
     position: absolute;
-    top: 20px;
+    top: 10px;
     width: 100%;
-    text-align: center;
-    font-size: 3rem;
-    color: white;
-    text-shadow: 2px 2px #000;
+    display: flex;
+    justify-content: space-around;
     pointer-events: none;
+}
+
+#score-display { font-size: 2.5rem; font-weight: bold; text-shadow: 2px 2px #000; }
+#currency-display { font-size: 1.2rem; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
+
+#death-screen {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    animation: fadeIn 0.3s;
+}
+
+.hidden { display: none !important; }
+
+button {
+    background: #e67e22;
+    border: none;
+    padding: 12px 24px;
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px;
+    transition: transform 0.1s;
+}
+
+button:hover { background: #d35400; transform: scale(1.05); }
+
+.shop {
+    margin-top: 20px;
+    border-top: 1px solid #555;
+    padding-top: 10px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }

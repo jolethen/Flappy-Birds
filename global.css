@@ -67,3 +67,64 @@ button:hover { background: #d35400; transform: scale(1.05); }
     from { opacity: 0; }
     to { opacity: 1; }
 }
+:root {
+    --gold: #f1c40f;
+    --panel: #3e2723;
+    --text: #ecf0f1;
+}
+
+body {
+    margin: 0; background: #121212;
+    display: flex; justify-content: center; align-items: center;
+    height: 100vh; font-family: 'Courier New', monospace; color: var(--text);
+}
+
+#game-container { position: relative; border: 6px solid #5d4037; border-radius: 12px; }
+
+#ui-layer {
+    position: absolute; top: 0; width: 100%; height: 60px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 15px; box-sizing: border-box; pointer-events: none;
+}
+
+#score-display { font-size: 2.5rem; text-shadow: 2px 2px #000; }
+#currency-wrapper { background: rgba(0,0,0,0.6); padding: 5px 12px; border-radius: 20px; }
+#shop-open-btn { pointer-events: auto; background: var(--gold); border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+.overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center; z-index: 10;
+}
+
+.hidden { display: none !important; }
+
+/* Shop Specifics */
+.shop-tabs { margin-bottom: 15px; }
+.shop-tabs button { background: #555; border: none; color: white; padding: 8px 15px; cursor: pointer; }
+.grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    max-height: 250px; overflow-y: auto; padding: 10px;
+}
+
+.item {
+    background: #2c3e50; padding: 10px; border-radius: 8px; cursor: pointer;
+    border: 2px solid transparent; transition: 0.2s;
+}
+.item.active { border-color: var(--gold); background: #34495e; }
+.swatch { width: 40px; height: 30px; margin: 0 auto 5px; border-radius: 4px; border: 1px solid #fff; }
+
+.main-btn { background: #27ae60; border: none; color: white; padding: 15px 30px; font-size: 1.2rem; cursor: pointer; margin: 10px; }
+.sec-btn { background: #2980b9; border: none; color: white; padding: 10px 20px; cursor: pointer; }
+.close-btn { margin-top: 20px; background: #c0392b; border: none; color: white; padding: 10px; width: 80%; cursor: pointer; }
+
+@keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+}
+.glitch { animation: glitch 0.3s infinite; color: #e74c3c; }
+    

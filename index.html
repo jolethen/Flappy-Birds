@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Aviator Workshop</title>
     <link rel="stylesheet" href="global.css">
 </head>
 <body>
     <div id="game-container">
-        <canvas id="gameCanvas" width="320" height="480"></canvas>
+        <canvas id="gameCanvas"></canvas>
         
         <div id="ui-layer">
             <div id="score-display">0</div>
@@ -56,7 +56,10 @@
         let activeBird = localStorage.getItem('birdActive') || 'b-classic';
         let activeTheme = localStorage.getItem('themeActive') || 't-classic';
 
-        // 10 Themes Configuration
+        // Timing for Smoothness
+        let lastTime = 0;
+        let pipeTimer = 0;
+
         const birdSkins = {
             'b-classic': { color: '#f4d03f', price: 0, name: 'Default' },
             'b-robotic': { color: '#bdc3c7', price: 20, name: 'Silver' },
@@ -73,13 +76,101 @@
             't-sunset': { bg: '#ff7e5f', pipe: '#feb47b', price: 200, name: 'Sunset' }
         };
 
-        // Physics
-        const GRAVITY = 0.25;
-        const FLAP = -4.6;
-        let bird = { x: 50, y: 200, w: 34, h: 24, v: 0 };
+        function resize() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            canvas.width = screenWidth > 600 ? screenHeight * 0.66 : screenWidth;
+            canvas.height = screenHeight;
+            bird.x = canvas.width * 0.15;
+        }
+
+        // Relative Physics adjusted for Delta Time
+        const getGravity = () => canvas.height * 1.8; // Per second
+        const getFlap = () => canvas.height * -0.45; // Instant impulse
+        const getPipeSpeed = () => canvas.width * 0.45; // Per second
+
+        let bird = { x: 50, y: 300, w: 34, h: 24, v: 0, rotation: 0 };
         let pipes = [];
-        let frame = 0;
         let gameActive = true;
+
+        function drawBird() {
+            ctx.save();
+            ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
+            
+            // Smoother rotation interpolation
+            let targetRotation = Math.min(Math.PI/4, Math.max(-Math.PI/4, bird.v * 0.002));
+            bird.rotation += (targetRotation - bird.rotation) * 0.15;
+            
+            ctx.rotate(bird.rotation);
+            ctx.fillStyle = birdSkins[activeBird].color;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 17, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(10, -4, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(12, -4, 2, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+
+        function update(dt) {
+            if (!gameActive) return;
+
+            // Update Physics
+            bird.v += getGravity() * dt;
+            bird.y += bird.v * dt;
+
+            // Pipe Spawning Logic (Time based)
+            pipeTimer += dt;
+            if (pipeTimer > 1.5) { // Spawn every 1.5 seconds
+                const gap = canvas.height * 0.28;
+                const top = Math.random() * (canvas.height - gap - 150) + 50;
+                pipes.push({ x: canvas.width, top: top, gap: gap, passed: false });
+                pipeTimer = 0;
+            }
+
+            const pipeWidth = canvas.width * 0.18;
+            const pSpeed = getPipeSpeed();
+
+            pipes.forEach((p, i) => {
+                p.x -= pSpeed * dt;
+
+                // Collision
+                if (bird.x + bird.w > p.x && bird.x < p.x + pipeWidth && (bird.y < p.top || bird.y + bird.h > p.top + p.gap)) endGame();
+                
+                // Score
+                if (p.x + pipeWidth < bird.x && !p.passed) { 
+                    score++; coins++; p.passed = true; updateUI(); 
+                }
+            });
+
+            if (bird.y + bird.h > canvas.height || bird.y < 0) endGame();
+            if (pipes.length > 0 && pipes[0].x < -pipeWidth) pipes.shift();
+        }
+
+        function loop(timestamp) {
+            // Calculate Delta Time (seconds since last frame)
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0; // Prevent huge jumps if user switches tabs
+            lastTime = timestamp;
+
+            update(dt);
+
+            // Render
+            const t = themes[activeTheme];
+            ctx.fillStyle = t.bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const pipeWidth = canvas.width * 0.18;
+            pipes.forEach(p => {
+                ctx.fillStyle = t.pipe;
+                ctx.fillRect(p.x, 0, pipeWidth, p.top);
+                ctx.fillRect(p.x, p.top + p.gap, pipeWidth, canvas.height);
+            });
+
+            drawBird();
+
+            requestAnimationFrame(loop);
+        }
 
         function initShop() {
             const bGrid = document.getElementById('bird-grid');
@@ -116,9 +207,7 @@
             } else {
                 return alert("Need more gears!");
             }
-            save();
-            initShop();
-            updateUI();
+            save(); initShop(); updateUI();
         }
 
         function save() {
@@ -128,46 +217,8 @@
             localStorage.setItem('themeActive', activeTheme);
         }
 
-        function drawBird() {
-            ctx.save();
-            ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
-            ctx.rotate(Math.min(Math.PI/4, Math.max(-Math.PI/4, bird.v * 0.1)));
-            ctx.fillStyle = birdSkins[activeBird].color;
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 17, 12, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = "#000"; ctx.stroke();
-            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(10, -4, 4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(12, -4, 2, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        }
-
-        function draw() {
-            if (!gameActive) return;
-            const t = themes[activeTheme];
-            ctx.fillStyle = t.bg;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            bird.v += GRAVITY; bird.y += bird.v;
-            if (frame % 90 === 0) pipes.push({ x: canvas.width, top: Math.random() * 200 + 50, passed: false });
-
-            pipes.forEach((p, i) => {
-                p.x -= 2;
-                ctx.fillStyle = t.pipe;
-                ctx.fillRect(p.x, 0, 50, p.top);
-                ctx.fillRect(p.x, p.top + 130, 50, canvas.height);
-
-                if (bird.x + bird.w > p.x && bird.x < p.x + 50 && (bird.y < p.top || bird.y + bird.h > p.top + 130)) endGame();
-                if (p.x + 50 < bird.x && !p.passed) { score++; coins++; p.passed = true; updateUI(); }
-            });
-
-            if (bird.y + bird.h > canvas.height || bird.y < 0) endGame();
-            drawBird();
-            frame++;
-            requestAnimationFrame(draw);
-        }
-
         function endGame() {
+            if (!gameActive) return;
             gameActive = false;
             if (score > highScore) { highScore = score; localStorage.setItem('birdHighScore', highScore); }
             save();
@@ -192,17 +243,27 @@
         }
 
         function resetGame() {
-            bird = { x: 50, y: 200, w: 34, h: 24, v: 0 };
-            pipes = []; score = 0; frame = 0; gameActive = true;
+            bird.y = canvas.height / 2;
+            bird.v = 0;
+            bird.rotation = 0;
+            pipes = []; score = 0; pipeTimer = 0;
+            gameActive = true;
             document.getElementById('death-screen').classList.add('hidden');
-            updateUI(); draw();
+            updateUI();
         }
 
-        window.addEventListener('keydown', (e) => { if(e.code === 'Space' && gameActive) bird.v = FLAP; });
-        canvas.addEventListener('mousedown', () => { if(gameActive) bird.v = FLAP; });
-        
+        function flap() { 
+            if(gameActive) bird.v = getFlap(); 
+        }
+
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') flap(); });
+        canvas.addEventListener('mousedown', flap);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); }, {passive: false});
+
+        window.addEventListener('resize', resize);
+        resize();
         updateUI();
-        draw();
+        requestAnimationFrame(loop);
     </script>
 </body>
 </html>
